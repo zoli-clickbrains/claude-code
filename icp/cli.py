@@ -60,8 +60,9 @@ def main(argv=None):
     text_keys = {key for key, _, _, kind, _ in INPUT_COLUMNS if kind in ("szoveg", "lista", "igennem")}
     clients = [{k: (v if k in text_keys else _num(v)) for k, v in c.items()} for c in read_clients(args.bemenet)]
     results = score_clients(clients)
-    fields = ["rang", "nev", "pontszam", "ertekkapu", "szint", "szint_nev", "javasolt_dij", "jelenlegi_dij",
-              "elteres", "dij_alapja", "legerosebb", "leggyengebb", "hianyzo_adatok"]
+    fields = ["rang", "nev", "pontszam", "rendszer", "statusz", "statusz_nev", "dontes", "kizart", "javasolt_dij",
+              "jelenlegi_dij", "elteres", "dij_alapja", "jutalekos_modell", "jutalekos_fix_dij", "jutalek_szazalek",
+              "legerosebb", "leggyengebb", "hianyzo_adatok"]
     if args.csv:
         with open(args.csv, "w", newline="", encoding="utf-8-sig") as fh:
             w = csv.writer(fh)
@@ -71,9 +72,9 @@ def main(argv=None):
                 w.writerow([getattr(r, f) for f in fields] + [r.csoportok[g] for g in groups])
         print(f"Elmentve: {args.csv}")
     for r in results:
-        cur = "—" if r.jelenlegi_dij is None else f"{r.jelenlegi_dij:,.0f}".replace(",", " ")
-        print(f"{r.rang:>3}. {r.nev:<30} {r.pontszam:5.1f}  {r.szint} ({r.szint_nev:<20}) "
-              f"javasolt: {r.javasolt_dij:>10,} Ft  jelenlegi: {cur} Ft".replace(",", " "))
+        fee = "—" if r.javasolt_dij is None else f"{r.javasolt_dij:,} Ft".replace(",", " ")
+        print(f"{r.rang:>3}. {r.nev:<34} ICP {r.pontszam:5.1f}  rendszer {r.rendszer:5.1f}  "
+              f"{r.statusz}. {r.statusz_nev:<42} {r.dontes:<32} díj: {fee}")
     return 0
 
 
