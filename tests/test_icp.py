@@ -4,46 +4,73 @@ import subprocess
 import pytest
 from openpyxl import load_workbook
 
-from icp.config import CRITERIA, default_config
+from icp.config import CRITERIA, GROUPS, SCALE_MAX, SEGMENTS, default_config
 from icp.engine import criterion_points, score_client, score_clients
 from icp.sample import SAMPLE_CLIENTS
-from icp.workbook import FIRST, S_RANK, S_RES, ResCols, build_workbook
+from icp.workbook import FIRST, GATE_FAIL, GATE_OK, S_RANK, S_RES, ResCols, build_workbook
 
 CFG = default_config()
 BY_CODE = {c["kod"]: c for c in CRITERIA}
+IDEAL_SEGMENT = SEGMENTS[0][0]
 
 
-def test_weights_sum_to_100():
+def _all(points, **extra):
+    """Minden 1–10-es skálán ugyanaz a pont, plusz egyedi értékek."""
+    client = {c["kod"]: points for c in CRITERIA if c["tipus"] == "skala"}
+    return client | extra
+
+
+def test_weights_sum_to_100_and_groups_are_complete():
     assert sum(c["suly"] for c in CRITERIA) == 100
+    assert {c["csoport"] for c in CRITERIA} == {g for g, _ in GROUPS}
+    assert sum(c["csoport"] == "Marketingezhetőség" for c in CRITERIA) == 17
+    assert len({c["kod"] for c in CRITERIA}) == len(CRITERIA)
 
 
-@pytest.mark.parametrize("value,expected", [(0, 1), (299_999, 1), (300_000, 2), (2_999_999, 3), (10_000_000, 5)])
+@pytest.mark.parametrize("value,expected", [(0, 1), (149_999, 1), (150_000, 3), (599_999, 5), (2_000_000, 10)])
 def test_budget_bands(value, expected):
     assert criterion_points(BY_CODE["keret"], value, CFG) == expected
 
 
-@pytest.mark.parametrize("days,expected", [(0, 5), (1, 4), (7, 4), (8, 3), (30, 2), (31, 1), (90, 1)])
+@pytest.mark.parametrize("days,expected", [(0, 10), (1, 8), (7, 8), (8, 6), (30, 4), (31, 2), (90, 1)])
 def test_payment_delay_bands_are_descending(days, expected):
     assert criterion_points(BY_CODE["keses"], days, CFG) == expected
 
 
+def test_scale_is_clamped_to_1_10():
+    assert criterion_points(BY_CODE["emberi"], 14, CFG) == SCALE_MAX
+    assert criterion_points(BY_CODE["emberi"], 0, CFG) == 1
+    assert criterion_points(BY_CODE["emberi"], 6.5, CFG) == 7
+
+
 def test_missing_and_unknown_values_get_missing_points():
     assert criterion_points(BY_CODE["roas"], "", CFG) == CFG["missing_points"]
-    assert criterion_points(BY_CODE["iparag"], "Ismeretlen", CFG) == CFG["missing_points"]
-    assert criterion_points(BY_CODE["iparag"], " e-kereskedelem, webshop ", CFG) == 5
+    assert criterion_points(BY_CODE["szegmens"], "Ismeretlen", CFG) == CFG["missing_points"]
+    assert criterion_points(BY_CODE["szegmens"], f" {IDEAL_SEGMENT.upper()} ", CFG) == 10
 
 
 def test_perfect_and_worst_clients_hit_score_limits():
-    best = {c["kod"]: 5 for c in CRITERIA if c["tipus"] == "skala"}
-    best.update(nev="X", iparag="E-kereskedelem, webshop", arbevetel=5000, keret=20_000_000, roas=10, keses=0,
-                hossz=36)
+    best = _all(10, nev="X", szegmens=IDEAL_SEGMENT, arbevetel=5000, keret=20_000_000, roas=10, keses=0, hossz=36)
     r = score_client(best)
-    assert (r.pontszam, r.szint, r.leggyengebb) == (100.0, "A", "—")
+    assert (r.pontszam, r.szint, r.leggyengebb, r.ertekkapu) == (100.0, "A", "—", True)
+    assert set(r.csoportok.values()) == {100.0}
 
-    worst = {c["kod"]: 1 for c in CRITERIA if c["tipus"] == "skala"}
-    worst.update(nev="Y", iparag="Gyártás, ipar", arbevetel=0, keret=0, roas=0, keses=60, hossz=0)
+    worst = _all(1, nev="Y", szegmens=SEGMENTS[-1][0], arbevetel=0, keret=0, roas=0, keses=90, hossz=0)
     r = score_client(worst)
-    assert r.szint == "D" and r.pontszam < 10
+    assert (r.pontszam, r.szint) == (0.0, "D")
+
+
+def test_value_gate_caps_non_ideal_segments_at_second_tier():
+    strong = _all(10, nev="Erős, de nem értékalapú", szegmens="Általános vállalkozás", arbevetel=5000,
+                  keret=20_000_000, roas=10, keses=0, hossz=36)
+    r = score_client(strong)
+    assert r.pontszam >= 80 and not r.ertekkapu
+    assert (r.szint, r.szorzo) == ("B", 1.05)
+
+    r = score_client(strong | {"szegmens": IDEAL_SEGMENT, "felelosseg": 6})
+    assert (r.ertekkapu, r.szint) == (False, "B")
+    r = score_client(strong | {"szegmens": IDEAL_SEGMENT, "felelosseg": 7})
+    assert (r.ertekkapu, r.szint) == (True, "A")
 
 
 def test_fee_uses_largest_of_three_components():
@@ -64,6 +91,13 @@ def test_ranking_orders_and_handles_ties():
     results = score_clients([{"nev": "B"}, {"nev": "A"}, {"nev": ""}])
     assert [r.nev for r in results] == ["B", "A"]
     assert [r.rang for r in results] == [1, 1]
+
+
+def test_sample_covers_every_tier_and_the_gate():
+    results = score_clients(SAMPLE_CLIENTS)
+    assert {r.szint for r in results} == {"A", "B", "C", "D"}
+    fast_fashion = next(r for r in results if "Gyorsdivat" in r.nev)
+    assert not fast_fashion.ertekkapu and fast_fashion.szint != "A"
 
 
 # ---- A táblázat képletei ugyanazt adják, mint a Python-motor ----
@@ -93,10 +127,14 @@ def test_workbook_formulas_match_engine(recalculated):
         e = expected[name]
         for c in CRITERIA:
             assert ws[f"{rc.points[c['kod']]}{row}"].value == e.pontok[c["kod"]], (name, c["kod"])
+        for g, _ in GROUPS:
+            assert ws[f"{rc.groups[g]}{row}"].value == pytest.approx(e.csoportok[g]), (name, g)
         got = {k: ws[f"{f[k]}{row}"].value for k in f}
         assert got["score"] == pytest.approx(e.pontszam), name
         assert got["rank"] == e.rang
-        assert (got["tier"], got["tier_name"]) == (e.szint, e.szint_nev)
+        assert got["gate"] == (GATE_OK if e.ertekkapu else GATE_FAIL), name
+        assert (got["tier"], got["tier_name"]) == (e.szint, e.szint_nev), name
+        assert got["mult"] == pytest.approx(e.szorzo), name
         assert (got["best"], got["worst"]) == (e.legerosebb, e.leggyengebb), name
         assert got["fee"] == e.javasolt_dij, name
         assert got["basis"] == e.dij_alapja, name

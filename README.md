@@ -25,35 +25,42 @@ python -m pytest
 
 | Lap | Tartalom |
 |---|---|
-| Útmutató | Rövid leírás |
-| Ügyfelek | Bemenet: ügyfelenként egy sor, legördülő listákkal és ellenőrzött 1–5 skálákkal |
-| Rangsor | Pontszám szerinti sorrend szinttel, díjjavaslattal és a jelenlegi díjtól való eltéréssel |
-| Eredmény | Kritériumonkénti pontok és a díjszámítás részletei |
-| Beállítások | Súlyok, sávhatárok, iparági pontok, szintek, díjparaméterek (sárga cellák) |
+| Útmutató | Rövid leírás, az ideális ügyfél meghatározása |
+| Ügyfelek | Bemenet: ügyfelenként egy sor, csoportszínű fejlécekkel, legördülő listákkal és ellenőrzött 1–10 skálákkal |
+| Rangsor | Pontszám szerinti sorrend szinttel, értékkapuval, csoportpontszámokkal, díjjavaslattal és a jelenlegi díjtól való eltéréssel |
+| Eredmény | Szempontonkénti pontok és a díjszámítás részletei |
+| Beállítások | Súlyok, sávhatárok, szegmensek, értékkapu, szintek, díjparaméterek (sárga cellák) |
+
+## Kiket tekintünk ideális ügyfélnek?
+
+Felelősségteljes, fenntartható, zöld szemléletű cégeket, amelyek elsősorban szükségleteket elégítenek ki, nem igényeket:
+
+- **Emberközpontú szolgáltatók:** egészség, oktatás, mentális jóllét, fejlesztés.
+- **Tudatos termelők és alkotók:** fenntartható termékek, kézműves márkák, gazdaságok.
+- **Hatásközpontú szervezetek:** közösségi, környezeti és társadalmi projektek.
+
+**Értékkapu:** A szintet csak az kaphat, akinek az „Értékalapú szegmens” pontja legalább 8, a „Felelősség, fenntarthatóság” pontja pedig legalább 7. Aki nem jut át, legfeljebb B szintű lehet, bármilyen magas a pontszáma.
 
 ## Pontozás
 
-11 kritérium, mindegyik 1–5 pontot kap. A kritériumok, a súlyuk és hogy honnan kapnak pontot:
+33 szempont, mindegyik 1–10 pontot kap. A 10 mindig a számunkra kedvező érték (pl. „Vásárlószerzés költsége”: 10 = olcsó, könnyű).
 
-| Csoport | Kritérium | Súly | Pontozás |
-|---|---|---|---|
-| Illeszkedés | Iparági illeszkedés | 10 | lista |
-| | Éves árbevétel | 10 | sávok (M Ft) |
-| | Havi hirdetési keret | 15 | sávok (Ft) |
-| | Marketing-érettség | 10 | 1–5 |
-| Teljesítmény | Jelenlegi ROAS | 10 | sávok (a dashboardról) |
-| | Növekedési potenciál | 10 | 1–5 |
-| Kapcsolat | Fizetési fegyelem | 10 | sávok (késés napban) |
-| | Együttműködés hossza | 5 | sávok (hónap) |
-| | Döntéshozó, együttműködés | 10 | 1–5 |
-| | Kezelhetőség | 5 | 1–5 |
-| | Ajánlási, referenciaérték | 5 | 1–5 |
+| Csoport | Szempontok | Súly |
+|---|---|---|
+| Értékek | Értékalapú szegmens (lista), Felelősség, fenntarthatóság | 20 |
+| Marketingezhetőség | A 17 szempont: sürgősség, piacméret, árazási potenciál, vásárlószerzés költsége, leszállítás költsége, egyediség a piacon, a piac gyorsasága, befektetési igény, upsell-potenciál, örökzöld potenciál, egyedi tulajdonság, látványos demonstrálhatóság, dizájn, egyszerű használat, problémamegoldás, újdonság, upsell-ajánlat | 35 |
+| Üzleti illeszkedés | Iparági illeszkedés, éves árbevétel, havi hirdetési keret, marketing-érettség, jelenlegi ROAS, növekedési potenciál | 22 |
+| Kapcsolat | Fizetési fegyelem, együttműködés hossza, döntéshozó, kezelhetőség, ajánlási érték, reális elvárások, emberi oldal, szakmai színvonal | 23 |
 
-A pontszám így számol: `ICP pontszám = Σ súly × (pont − 1) / 4`. Ha egy adat hiányzik, 2 pontot kap, hogy a hiányos adatlap ne kerüljön előrébb a kitöltöttnél.
+A szempontonkénti súlyok és leírások a Beállítások lapon és az `icp/config.py` fájlban vannak.
+
+A pontszám így számol: `ICP pontszám = 100 × Σ súly × (pont − 1) / (9 × Σ súly)`. A négy csoport külön is kap 0–100-as pontszámot. Ha egy adat hiányzik, 3 pontot kap, hogy a hiányos adatlap ne kerüljön előrébb a kitöltöttnél.
+
+Az árbevétel- és a hirdetésikeret-sávok kkv-khoz és szervezetekhez vannak kalibrálva (pl. a havi 1 millió Ft-os keret már 9 pont).
 
 A szintek határai:
 
-- **A:** legalább 80 pont (ideális ügyfél)
+- **A:** legalább 80 pont és átjut az értékkapun (ideális ügyfél)
 - **B:** legalább 65 pont
 - **C:** legalább 50 pont
 - **D:** 50 pont alatt

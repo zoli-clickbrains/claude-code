@@ -57,17 +57,18 @@ def main(argv=None):
         print(f"Elkészült: {args.kimenet}")
         return 0
 
-    text_keys = {"nev", "iparag", "google", "meta", "megjegyzes"}
+    text_keys = {key for key, _, _, kind, _ in INPUT_COLUMNS if kind in ("szoveg", "lista", "igennem")}
     clients = [{k: (v if k in text_keys else _num(v)) for k, v in c.items()} for c in read_clients(args.bemenet)]
     results = score_clients(clients)
-    fields = ["rang", "nev", "pontszam", "szint", "szint_nev", "javasolt_dij", "jelenlegi_dij", "elteres",
-              "dij_alapja", "legerosebb", "leggyengebb", "hianyzo_adatok"]
+    fields = ["rang", "nev", "pontszam", "ertekkapu", "szint", "szint_nev", "javasolt_dij", "jelenlegi_dij",
+              "elteres", "dij_alapja", "legerosebb", "leggyengebb", "hianyzo_adatok"]
     if args.csv:
         with open(args.csv, "w", newline="", encoding="utf-8-sig") as fh:
             w = csv.writer(fh)
-            w.writerow(fields)
+            groups = list(results[0].csoportok) if results else []
+            w.writerow(fields + groups)
             for r in results:
-                w.writerow([getattr(r, f) for f in fields])
+                w.writerow([getattr(r, f) for f in fields] + [r.csoportok[g] for g in groups])
         print(f"Elmentve: {args.csv}")
     for r in results:
         cur = "—" if r.jelenlegi_dij is None else f"{r.jelenlegi_dij:,.0f}".replace(",", " ")

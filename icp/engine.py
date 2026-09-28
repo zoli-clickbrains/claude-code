@@ -6,16 +6,18 @@ beépíthető.
 """
 
 import math
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
-from .config import default_config
+from .config import GROUPS, default_config
 
 
 @dataclass
 class Result:
     nev: str
-    pontok: dict  # kritériumkód -> 1–5 pont
+    pontok: dict  # kritériumkód -> 1–10 pont
+    csoportok: dict  # csoportnév -> 0–100
     pontszam: float  # 0–100
+    ertekkapu: bool
     szint: str
     szint_nev: str
     legerosebb: str
@@ -31,11 +33,15 @@ class Result:
     jutalek: float | None
     hianyzo_adatok: int
     rang: int = 0
-    extra: dict = field(default_factory=dict)
 
 
 def _blank(value):
     return value is None or (isinstance(value, str) and value.strip() == "")
+
+
+def _round1(value):
+    # Excel-féle kerekítés (.5 felfelé); a Python round() banki kerekítést használna.
+    return math.floor(value * 10 + 0.5 + 1e-9) / 10
 
 
 def _band_points(value, bands):
@@ -48,7 +54,7 @@ def _band_points(value, bands):
 
 
 def criterion_points(criterion, value, config):
-    """Egy kritérium pontja (1–5); hiányzó adatnál a beállított pont."""
+    """Egy kritérium pontja (1–10); hiányzó adatnál a beállított pont."""
     missing = config["missing_points"]
     if _blank(value):
         return missing
@@ -56,12 +62,19 @@ def criterion_points(criterion, value, config):
     if kind == "sav":
         return _band_points(value, criterion["savok"])
     if kind == "skala":
-        # Az Excel ROUND-hoz igazodva: .5 felfelé kerekít.
-        return min(5, max(1, math.floor(float(value) + 0.5)))
+        return min(config["scale_max"], max(1, math.floor(float(value) + 0.5)))
     if kind == "lista":
-        lookup = {name.casefold(): pts for name, pts in config["industries"]}
+        lookup = {name.casefold(): pts for name, pts in config["segments"]}
         return lookup.get(str(value).strip().casefold(), missing)
     raise ValueError(f"Ismeretlen kritériumtípus: {kind}")
+
+
+def _weighted(criteria, points, top):
+    """Súlyozott pontszám 0–100 között."""
+    # Ugyanabban a műveleti sorrendben, mint a táblázat képlete, hogy a
+    # kerekítési határesetek (pl. x,x5) is egyezzenek.
+    total = sum(c["suly"] for c in criteria)
+    return 100 * sum(c["suly"] * (points[c["kod"]] - 1) for c in criteria) / ((top - 1) * total)
 
 
 def _yes(value):
@@ -83,19 +96,23 @@ def score_client(client, config=None):
     config = config or default_config()
     criteria = config["criteria"]
     pricing = config["pricing"]
+    top = config["scale_max"]
 
     points = {c["kod"]: criterion_points(c, client.get(c["kod"]), config) for c in criteria}
-    raw_score = sum(c["suly"] * (points[c["kod"]] - 1) / 4 for c in criteria)
-    # Excel-féle kerekítés (.5 felfelé); a Python round() banki kerekítést használna.
-    score = math.floor(raw_score * 10 + 0.5 + 1e-9) / 10
+    score = _round1(_weighted(criteria, points, top))
+    groups = {g: _round1(_weighted([c for c in criteria if c["csoport"] == g], points, top)) for g, _ in GROUPS}
 
-    tier = config["tiers"][0]
-    for t in config["tiers"]:
+    gate = all(points[k] >= v for k, v in config["value_gate"].items())
+    tiers = config["tiers"]
+    tier = tiers[0]
+    for t in tiers:
         if score >= t["min"]:
             tier = t
+    if tier is tiers[-1] and not gate:
+        tier = tiers[-2]
 
     strongest = max(criteria, key=lambda c: points[c["kod"]] + c["suly"] / 1000)
-    lost = [c["suly"] * (5 - points[c["kod"]]) for c in criteria]
+    lost = [c["suly"] * (top - points[c["kod"]]) for c in criteria]
     weakest = "—" if max(lost) == 0 else criteria[lost.index(max(lost))]["nev"]
 
     labour = (
@@ -124,7 +141,9 @@ def score_client(client, config=None):
     return Result(
         nev=client.get("nev", ""),
         pontok=points,
+        csoportok=groups,
         pontszam=score,
+        ertekkapu=gate,
         szint=tier["szint"],
         szint_nev=tier["nev"],
         legerosebb=strongest["nev"],
