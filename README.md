@@ -25,11 +25,12 @@ python -m pytest
 
 | Lap | Tartalom |
 |---|---|
-| Útmutató | Rövid leírás, az ideális ügyfél meghatározása |
+| Útmutató | Rövid leírás, az ideális ügyfél, a státuszok és a díjazás magyarázata |
 | Ügyfelek | Bemenet: ügyfelenként egy sor, csoportszínű fejlécekkel, legördülő listákkal és ellenőrzött 1–10 skálákkal |
-| Rangsor | Pontszám szerinti sorrend szinttel, értékkapuval, csoportpontszámokkal, díjjavaslattal és a jelenlegi díjtól való eltéréssel |
+| Rangsor | ICP pontszám szerinti sorrend státusszal, döntéssel, csoportpontszámokkal, fix díjjal és jutalékos ajánlattal |
+| Portfólió | Hány elfogadott ügyfél van az egyes státuszokban, és teljesülnek-e a célarányok |
 | Eredmény | Szempontonkénti pontok és a díjszámítás részletei |
-| Beállítások | Súlyok, sávhatárok, szegmensek, értékkapu, szintek, díjparaméterek (sárga cellák) |
+| Beállítások | Súlyok, sávhatárok, választható értékek, státuszhatárok, kizáró feltételek, díjparaméterek (sárga cellák) |
 
 ## Kiket tekintünk ideális ügyfélnek?
 
@@ -39,39 +40,45 @@ Felelősségteljes, fenntartható, zöld szemléletű cégeket, amelyek elsősor
 - **Tudatos termelők és alkotók:** fenntartható termékek, kézműves márkák, gazdaságok.
 - **Hatásközpontú szervezetek:** közösségi, környezeti és társadalmi projektek.
 
-**Értékkapu:** A szintet csak az kaphat, akinek az „Értékalapú szegmens” pontja legalább 8, a „Felelősség, fenntarthatóság” pontja pedig legalább 7. Aki nem jut át, legfeljebb B szintű lehet, bármilyen magas a pontszáma.
+**Kizáró feltételek:** az „Értékeinkkel nem összeegyeztethető” szegmens és a legfeljebb 3 pontos felelősség. Az ilyen ügyfél automatikusan 5. státuszú, és elutasítjuk. Hiányzó adat nem zár ki.
 
 ## Pontozás
 
-33 szempont, mindegyik 1–10 pontot kap. A 10 mindig a számunkra kedvező érték (pl. „Vásárlószerzés költsége”: 10 = olcsó, könnyű).
+33 szempont, mindegyik 1–10 pontot kap. A 10 mindig a számunkra kedvező érték (pl. „Vásárlószerzés költsége”: 10 = olcsó, könnyű). A súlyozás ideiglenes váz; a hirdetési keret súlya szándékosan alacsony (2).
 
 | Csoport | Szempontok | Súly |
 |---|---|---|
-| Értékek | Értékalapú szegmens (lista), Felelősség, fenntarthatóság | 20 |
-| Marketingezhetőség | A 17 szempont: sürgősség, piacméret, árazási potenciál, vásárlószerzés költsége, leszállítás költsége, egyediség a piacon, a piac gyorsasága, befektetési igény, upsell-potenciál, örökzöld potenciál, egyedi tulajdonság, látványos demonstrálhatóság, dizájn, egyszerű használat, problémamegoldás, újdonság, upsell-ajánlat | 35 |
-| Üzleti illeszkedés | Iparági illeszkedés, éves árbevétel, havi hirdetési keret, marketing-érettség, jelenlegi ROAS, növekedési potenciál | 22 |
-| Kapcsolat | Fizetési fegyelem, együttműködés hossza, döntéshozó, kezelhetőség, ajánlási érték, reális elvárások, emberi oldal, szakmai színvonal | 23 |
+| Értékek | Értékalapú szegmens (lista), felelősség és fenntarthatóság | 20 |
+| Marketingezhetőség | 15 szempont: sürgősség, piacméret, árazási potenciál, vásárlószerzés költsége, leszállítás költsége, egyediség és egyedi tulajdonság, a piac gyorsasága, befektetési igény, upsell-potenciál, örökzöld potenciál, látványos demonstrálhatóság, dizájn, egyszerű használat, problémamegoldás, újdonság | 30 |
+| Üzleti illeszkedés | Iparági illeszkedés, éves árbevétel, havi hirdetési keret, marketing-érettség, jelenlegi ROAS, növekedési potenciál, nyitottság a jutalékos modellre (lista) | 20 |
+| Kapcsolat | Fizetési fegyelem, együttműködés hossza, döntéshozó, kezelhetőség, ajánlási érték, reális elvárások, emberi oldal, szakmai színvonal, korábbi ügynökségi tapasztalat (lista) | 30 |
 
-A szempontonkénti súlyok és leírások a Beállítások lapon és az `icp/config.py` fájlban vannak.
+Az eredeti 17 marketingezhetőségi szempontból kettő-kettő összevonva: „Egyediség a piacon” + „Egyedi tulajdonság”, illetve „Upsell-potenciál” + „Van hozzá upsell”.
 
-A pontszám így számol: `ICP pontszám = 100 × Σ súly × (pont − 1) / (9 × Σ súly)`. A négy csoport külön is kap 0–100-as pontszámot. Ha egy adat hiányzik, 3 pontot kap, hogy a hiányos adatlap ne kerüljön előrébb a kitöltöttnél.
+Két összesített pontszám készül (0–100):
 
-Az árbevétel- és a hirdetésikeret-sávok kkv-khoz és szervezetekhez vannak kalibrálva (pl. a havi 1 millió Ft-os keret már 9 pont).
+- **ICP pontszám:** mind a 33 szempont, `100 × Σ súly × (pont − 1) / (9 × Σ súly)`. Ez adja a rangsort.
+- **Rendszerpontszám:** csak a marketingezhetőség és az üzleti illeszkedés. Ez dönti el a státuszt, mert a státusz a marketingrendszer állapotát írja le.
 
-A szintek határai:
+Ha egy adat hiányzik, 3 pontot kap, hogy a hiányos adatlap ne kerüljön előrébb a kitöltöttnél.
 
-- **A:** legalább 80 pont és átjut az értékkapun (ideális ügyfél)
-- **B:** legalább 65 pont
-- **C:** legalább 50 pont
-- **D:** 50 pont alatt
+## Státuszok és díjazás
 
-## Díjjavaslat
+| Státusz | Feltétel | Díjszorzó | Jutalék (jutalékos modellben) |
+|---|---|---|---|
+| 1. Stabil rendszer | rendszerpontszám ≥ 70 | 0,90 | 5% |
+| 2. Menedzselt rendszer | rendszerpontszám ≥ 55 | 1,00 | 3% |
+| 3. Fejlesztés alatt álló rendszer | rendszerpontszám ≥ 40 | 1,15 | – |
+| 4. Stratégiai fejlesztést igénylő rendszer | 40 alatt, de ≥ 25, és Értékek ≥ 80, Kapcsolat ≥ 75 | 1,30 | – |
+| 5. Kritikus helyreállítást igénylő rendszer | minden más, vagy kizáró feltétel | nincs ajánlat, elutasítjuk | – |
 
+- **4-es hely:** legfeljebb 1 ügyfél lehet 4. státuszú (a legmagasabb ICP pontszámú); a többi várólistára kerül.
+- **Célarány** (Portfólió lap, az elfogadott ügyfelekre): 70–80% legyen 1. vagy 2. státuszú, 20–25% pedig 3. státuszú.
 - **Munkadíj:** Google-alapdíj + Meta-alapdíj + egyéb csatornák díja + becsült havi óraszám × óradíj.
-- **Javasolt havi díj:** a három érték közül a legnagyobb, felfelé kerekítve 10 000 Ft-ra:
-  - munkadíj × szintszorzó (A 1,00 · B 1,05 · C 1,15 · D 1,30),
+- **Javasolt fix havi díj:** a három érték közül a legnagyobb, felfelé kerekítve 10 000 Ft-ra:
+  - munkadíj × státuszszorzó,
   - a hirdetési keret 8%-a,
   - minimum 150 000 Ft.
-- **Jutalék:** később, szintenként megadott %-ban számolható a mért bevételből. A beállításokban most 0%.
+- **Jutalékos modell:** akkor ajánljuk, ha a státuszhoz jutalék tartozik (1–2.), és az ügyfél nyitott rá (a nyitottság legalább 7 pont). Ilyenkor a fix díj 25%-kal csökken, és a mért bevétel státusz szerinti %-a jutalékként jár.
 
 Minden alapérték az `icp/config.py` fájlban van, a táblázatban pedig a Beállítások lapon.
